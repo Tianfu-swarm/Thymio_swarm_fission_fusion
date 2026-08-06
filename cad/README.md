@@ -8,4 +8,4 @@ All 3D models, CAD parts, and mechanical assemblies for this project were design
 
     Viewing & Exporting: The link above provides view-only access. You can inspect the 3D models directly in your web browser and export parts into common formats (.STEP, .STL, .IGES, etc.) without needing edit permissions.
 
-    Edit Access: The workspace is locked for editing by default. If you need edit permissions to contribute to or modify the design files, please request access directly from Tianfu (tianfu.zhang@uni-konstanz.de).
+    Edit Access: The workspace is locked for editing by default. If you need edit permissions to contribute to or modify the design files, please request access directly from Tianfu.
