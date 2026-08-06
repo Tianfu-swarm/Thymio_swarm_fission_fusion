@@ -6,6 +6,6 @@ View CAD Models on OnShape : https://cad.onshape.com/documents/584648bea63d64a5e
 
 ## Access & Editing Permissions
 
-    Viewing & Exporting: The link above provides view-only access. You can inspect the 3D models directly in your browser and export parts into standard formats (.STEP, .STL, .IGES) without needing edit permissions.
+Viewing & Exporting: The link above provides view-only access. You can inspect the 3D models directly in your browser and export parts into standard formats (.STEP, .STL, .IGES) without needing edit permissions.
 
-    Edit Access: The workspace is locked for editing by default. If you need edit permissions to modify the design files, please request access directly from Tianfu.
+Edit Access: The workspace is locked for editing by default. If you need edit permissions to modify the design files, please request access directly from Tianfu.
