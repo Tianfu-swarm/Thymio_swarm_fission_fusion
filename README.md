@@ -18,6 +18,3 @@ This repository stores materials produced during the internship, organized by ca
 
 Each folder has its own README with more details.
 
-## Naming convention
-
-Suggested format: `YYYYMMDD_short_description`, for easy sorting and searching.
