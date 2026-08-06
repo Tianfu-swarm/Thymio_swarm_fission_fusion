@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>tag_tracker</name>
+  <version>0.1.0</version>
+  <description>
+    AprilTag tracker: detects all tags in camera images, uses fixed
+    anchor tags to build a reference coordinate frame, and publishes x/y/yaw
+    for every moving tag in that frame.
+  </description>
+  <maintainer email="tianfu.zhang@uni-konstanz.de">Tianfu Zhang</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>cv_bridge</depend>
+  <depend>image_transport</depend>
+
+  <!-- OpenCV (provided by the system / rosdep) -->
+  <depend>opencv2</depend>
+
+  <!-- apriltag C library (apt: libapriltag-dev) -->
+  <build_depend>apriltag</build_depend>
+  <exec_depend>apriltag</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
