@@ -37,18 +37,14 @@ To build the workspace, you need to clone multiple repositories into your ROS 2 
 # 1. Clone this main repository
 git clone https://github.com/Tianfu-swarm/Thymio_swarm_fission_fusion.git
 
-#2 Create a src folder
-mkdir code/src
-cd code/src/
-
-# 3. Clone the three external dependencies
+# 2. Clone the three external dependencies
 git clone https://github.com/Tianfu-swarm/argos3_ros_bridge.git
 git clone https://github.com/basler/pylon-ros-camera.git
 git clone https://github.com/Tianfu-swarm/tag_tracker.git
 
-# 4. Copy the allocation.argos file from the real_mapping_argos_controller folder to the src folder
+# 3. Copy the allocation.argos file from the real_mapping_argos_controller folder to the src folder
 
-# 5. You must download the ROS2-Driver for Basler Cameras and download argos3 plugins to access the foot-bot model: https://github.com/ilpincy/argos3/tree/master/src/plugins/robots/foot-bot.
+# 4. You must download the ROS2-Driver for Basler Cameras and download argos3 plugins to access the foot-bot model: https://github.com/ilpincy/argos3/tree/master/src/plugins/robots/foot-bot.
 ```
 The workspace has to look like this:
 <p align="center">
