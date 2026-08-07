@@ -1,17 +1,3 @@
-# Code
-
-Experiment code, one subfolder per experiment/project, e.g.:
-
-```
-code/
-├── thymio_swarm_fission_fusion_controller/
-│   └── README.md
-└── real_mapping_argos_controller/
-    └── README.md
-```
-
-Each experiment's README should cover install, configuration, and how to run it:
-
 
 # Thymio Swarm Fission-Fusion Controller
 
@@ -38,27 +24,42 @@ This project implements a decentralized fission-fusion task allocation algorithm
 **Related Packages in this Repository:**
 * [argos3_ros_bridge](<https://github.com/Tianfu-swarm/argos3_ros_bridge>)
 * [tag_tracker](<https://github.com/Tianfu-swarm/tag_tracker>)
+* [pylon-ros-camera](<https://github.com/basler/pylon-ros-camera>)
 
 ---
 
 ## Installation & Setup
 
 ### 1. Build the Workspace
-Clone this repository and the necessary related packages into your ROS 2 workspace's `src` directory.
+To build the workspace, you need to clone multiple repositories into your ROS 2 workspace's `src` directory. The Python control nodes and the ARGoS configuration files are provided in this repository, while the bridging and tracking tools come from external Git repositories.
 
 ```bash
-cd ~/ros2_ws/src
-# Clone repositories here
+# 1. Clone this main repository
+git clone https://github.com/Tianfu-swarm/Thymio_swarm_fission_fusion.git
+
+#2 Create a src folder
+mkdir code/src
+cd code/src/
+
+# 3. Clone the three external dependencies
+git clone https://github.com/Tianfu-swarm/argos3_ros_bridge.git
+git clone https://github.com/basler/pylon-ros-camera.git
+git clone https://github.com/Tianfu-swarm/tag_tracker.git
 ```
+It has to look like this:
+
+
 ### 2. Replace the ARGoS ROS Bridge Controller
 
-Before building, you must replace the default argos_ros_footbot.cpp (and .h) in the argos3_ros_bridge package with the optimized versions provided in this package. This stripped-down version removes unused actuators and strictly bridges virtual sensors and Extrema radio data.
+Before building, you must replace the default argos_ros_footbot.cpp (and .h) in the argos3_ros_bridge package with the optimized versions provided in this package (argos_ros_footbot_fission_fusion). Don't forget to change the CMAKE. This stripped-down version removes unused actuators and strictly bridges virtual sensors and Extrema radio data.
 
 Note: The allocation.argos configuration file is included in this repository and should remain alongside the source code (src/allocation.argos).
 
 ### 3. Compile
+
+Go to your ROS 2 workspace and build the code:
 ```bash
-cd ~/ros2_ws
+cd ~/code
 colcon build
 ```
 ## Configuration
@@ -86,7 +87,15 @@ export ROS_DISCOVERY_SERVER="<SERVER_IP>:11811"
 export ROS_SUPER_CLIENT=True
 unset  ROS_DOMAIN_ID
 ```
-### 2. Hardware & Physical Arena Setup
+### 2. Scaling the Swarm (Adding/Removing Robots)
+
+If you change the total number of physical robots used in the experiment, you must update two configuration files so the system knows how many robots to track and simulate:
+
+* Tag Tracker Config: Edit tag_tracker.yaml (located in the tag_tracker package's config folder) to add or remove the specific AprilTag IDs assigned to your active robots.
+
+* ARGoS Configuration: Edit your allocation.argos file to add or remove <foot-bot> XML blocks. Ensure each block has a unique id that matches the physical robot's ROS namespace (e.g., id="bot7").
+
+### 3. Hardware & Physical Arena Setup
 1. The Mat & Origin: Lay down the black mat. Place the origin AprilTag sheet flat on the floor within the camera's field of view to align the physical world with the ROS 2 / ARGoS coordinate frames.
 
 2. The Targets: Place the grayscale printed letters onto the mat. Ensure the prints fall within the required grayscale detection thresholds.
@@ -95,7 +104,7 @@ unset  ROS_DOMAIN_ID
 
 ## Usage
 ### Server Side (Central PC)
-Open 5 separate terminal tabs. You must source your workspace in every single terminal before running these commands:
+Open 5 separate terminal tabs. You must be in the ROS2 workspace for every terminal except for the discovery server. You must source your workspace in every single terminal before running these commands:
 ```bash
 source install/setup.bash
 ```
@@ -121,13 +130,13 @@ Terminal 5: Launch ARGoS Virtual Environment
 
 Starts the physics engine for virtual collision avoidance and radio consensus bridging.
 ```bash
-argos3 -c src/allocation.argos
+argos3 -c src/real_mapping_argos_controller/allocation.argos
 ```
 
 ### Client Side (Thymio Robots)
 SSH into each Raspberry Pi on your Thymio swarm. Verify the USB connection to the Thymio base is active.
 
-Source the workspace and run the allocation driver. This node executes the FSM, processes hardware IR sensors, and calculates the vector summation for movement:
+Run the allocation driver. This node executes the FSM, processes hardware IR sensors, and calculates the vector summation for movement:
 ```bash
 cd Project_Brendan_Bilodeau/Allocation
 python3 thymio_allocation_driver.py
