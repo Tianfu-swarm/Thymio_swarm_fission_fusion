@@ -16,7 +16,7 @@ This project implements a decentralized fission-fusion task allocation algorithm
 * MicroSD cards flashed with the ROS 2 client image for the Raspberry Pis.
 
 **Software:**
-* ROS 2 (Jazzy/Humble).
+* ROS 2 Humble.
 * FastDDS (for ROS 2 Discovery Server).
 * ARGoS3 Simulator.
 * `thymiodirect` Python library.
@@ -45,9 +45,15 @@ cd code/src/
 git clone https://github.com/Tianfu-swarm/argos3_ros_bridge.git
 git clone https://github.com/basler/pylon-ros-camera.git
 git clone https://github.com/Tianfu-swarm/tag_tracker.git
+
+# 4. Copy the allocation.argos file from the real_mapping_argos_controller folder to the src folder
+
+# 5. You must download the ROS2-Driver for Basler Cameras and download argos3 plugins to access the foot-bot.
 ```
 It has to look like this:
-
+<p align="center">
+  <img src="./../doc/photos/src_folder.png" width="450" style="vertical-align: middle;">
+</p>
 
 ### 2. Replace the ARGoS ROS Bridge Controller
 
@@ -59,7 +65,7 @@ Note: The allocation.argos configuration file is included in this repository and
 
 Go to your ROS 2 workspace and build the code:
 ```bash
-cd ~/code
+cd code/
 colcon build
 ```
 ## Configuration
@@ -130,7 +136,7 @@ Terminal 5: Launch ARGoS Virtual Environment
 
 Starts the physics engine for virtual collision avoidance and radio consensus bridging.
 ```bash
-argos3 -c src/real_mapping_argos_controller/allocation.argos
+argos3 -c src/allocation.argos
 ```
 
 ### Client Side (Thymio Robots)
