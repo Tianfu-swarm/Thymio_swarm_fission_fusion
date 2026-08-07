@@ -1,6 +1,5 @@
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Twist
 from std_msgs.msg import Float64MultiArray
 import time
 import math
@@ -9,9 +8,13 @@ from allocation_fsm import AllocationFSM
 from extrema_radio import ExtremaRadio
 
 class ThymioAllocationDriverNode(Node):
+    """
+    ROS 2 Hardware Interface Driver for physical Thymio robot.
+    Handles I/O bridge, hardware motor commands, virtual proximity processing,
+    and coordinates state updates with FSM and Radio modules.
+    """
     def __init__(self):
         super().__init__('thymio_allocation_driver')
-        self.L = 0.095
 
         self.get_logger().info("Connecting to physical Thymio for Allocation Task...")
         try:
@@ -25,36 +28,40 @@ class ThymioAllocationDriverNode(Node):
             self.get_logger().error(f"Hardware Connection Failed: {e}")
             return
 
+        # Robot topic identification prefix
         self.robot_id = "bot7"
+
+        # Hardware & Perception Buffers
         self.latest_virtual_prox = [0.0] * 24 
         self.tracked_neighbors = {}
         self.prev_target_left = 0.0
         self.prev_target_right = 0.0
         
+        # Radio & Consensus Logic Initialization
         self.incoming_radio_buffer = []
         self.fsm = AllocationFSM()
         self.radio_logic = ExtremaRadio(k_dim=50)
         self.current_network_size = 1.0 
-        
         self.last_stay_heard_time = 0.0 
 
-        # Publishers
-        self.cmd_vel_publisher = self.create_publisher(Twist, f'/{self.robot_id}/cmd_vel', 10)
+        # ROS 2 Publishers
         self.radio_tx_pub = self.create_publisher(Float64MultiArray, f'/{self.robot_id}/radio_tx', 10) 
         
-        # Subscribers
+        # ROS 2 Subscribers
         self.create_subscription(Float64MultiArray, f'/{self.robot_id}/virtual_prox', self.virtual_prox_callback, 10) 
         self.create_subscription(Float64MultiArray, f'/{self.robot_id}/neighbors', self.neighbor_callback, 10)
         self.create_subscription(Float64MultiArray, f'/{self.robot_id}/radio_rx', self.radio_rx_callback, 10) 
 
-        # Timers
+        # Control & Radio Execution Timers (20Hz control, 2Hz consensus)
         self.control_loop_timer = self.create_timer(0.05, self.execute_control_loop)
         self.radio_timer = self.create_timer(0.5, self.radio_and_propagation_step) 
 
     def virtual_prox_callback(self, msg):
+        """Callback for receiving simulated 24-sector virtual proximity values from ARGoS bridge."""
         if len(msg.data) >= 24: self.latest_virtual_prox = msg.data
 
     def neighbor_callback(self, msg):
+        """Callback for Range-and-Bearing neighbor distance and bearing readings."""
         self.tracked_neighbors.clear()
         idx = 1
         for i in range(0, len(msg.data), 2):
@@ -62,10 +69,12 @@ class ThymioAllocationDriverNode(Node):
             idx += 1
 
     def radio_rx_callback(self, msg):
+        """Buffers incoming inter-robot radio messages."""
         if len(msg.data) > 0: 
             self.incoming_radio_buffer.extend(msg.data)
 
     def radio_and_propagation_step(self):
+        """Periodic timer task executing one step of Extrema consensus and publishing outbound packets."""
         self.current_network_size, tx_data = self.radio_logic.step(
             self.incoming_radio_buffer, 
             self.fsm.current_state, 
@@ -81,15 +90,17 @@ class ThymioAllocationDriverNode(Node):
             self.radio_tx_pub.publish(msg)
 
     def execute_control_loop(self):
+        """Primary 20Hz control loop calculating vector summation, FSM transitions, and wheel speeds."""
         try:
             current_time = time.time()
             prox_horizontal = self.th[self.node_id]["prox.horizontal"]
             ground_delta = self.th[self.node_id]["prox.ground.delta"]
 
+            # Process ground sensor and measure nearest physical peer
             gray_value = self.fsm.process_ground_sensor(ground_delta)
-
             closest_neighbor_dist = min([d["distance_cm"] for d in self.tracked_neighbors.values()] or [999.0])
             
+            # Check radio buffer for active STAY state broadcasts from peers
             stride = self.radio_logic.K_DIMENSION + 3
             num_msgs = len(self.incoming_radio_buffer) // stride
             for i in range(num_msgs):
@@ -100,6 +111,7 @@ class ThymioAllocationDriverNode(Node):
             
             stay_robot_heard = (current_time - self.last_stay_heard_time) < 1.0
 
+            # Target extraction for FUSION state following
             target_data = {'detected': False, 'is_follower': False, 'distance_m': 99.0, 'bearing_rad': 0.0}
             if self.tracked_neighbors:
                 closest_idx = min(self.tracked_neighbors, key=lambda k: self.tracked_neighbors[k]['distance_cm'])
@@ -110,6 +122,7 @@ class ThymioAllocationDriverNode(Node):
                 target_data['bearing_rad'] = closest['bearing_rad']
                 target_data['is_follower'] = (target_data['distance_m'] < 0.6) and stay_robot_heard
 
+            # Evaluate FSM state transitions
             state = self.fsm.evaluate_transitions(
                 gray_value, 
                 self.current_network_size, 
@@ -119,11 +132,13 @@ class ThymioAllocationDriverNode(Node):
                 self.get_logger()
             )
 
+            # Check boundary condition recovery on grayscale target edges
             val_left = min(max(ground_delta[0] / 1000.0, 0.0), 1.0) if len(ground_delta) >= 2 else 0.0
             val_right = min(max(ground_delta[1] / 1000.0, 0.0), 1.0) if len(ground_delta) >= 2 else 0.0
             is_boundary_recovery = (state == 'STAY' and (val_left < 0.40 or val_right < 0.40))
 
             if is_boundary_recovery:
+                # Pivot motors to steer back inside gray floor marking
                 if val_left < 0.40 and val_right >= 0.40:
                     raw_left = 50.0   
                     raw_right = 10.0
@@ -134,9 +149,8 @@ class ThymioAllocationDriverNode(Node):
                     raw_left = 40.0   
                     raw_right = -40.0
             else:
-                # Calculate normal forces (Now includes scaled-down smooth avoidance for FUSION/STAY)
+                # Calculate vector sum (Avoidance + Behavior Forces)
                 net_x, net_y = self.fsm.get_avoidance_vector(prox_horizontal, self.latest_virtual_prox, state)
-                
                 is_near_physical_wall = any(v > 3800 for v in prox_horizontal[:5])
 
                 if state == 'RANDOM_WALK':
@@ -166,6 +180,7 @@ class ThymioAllocationDriverNode(Node):
                     net_x += w_x * 2.0; net_y += w_y * 2.0
                     target_speed = self.fsm.CRUISE_SPEED * 1.5
 
+                # Convert heading error to differential wheel speeds
                 magnitude = math.hypot(net_x, net_y)
                 if magnitude > 0.1:
                     h_err = math.atan2(net_y, net_x)
@@ -175,9 +190,7 @@ class ThymioAllocationDriverNode(Node):
                         rotation_offset = 0.0
                         forward_speed = effective_speed
                     else:
-                        # Determine if we need an AGGRESSIVE emergency turn
                         if state in ['FUSION', 'STAY']:
-                            # Only physical walls cause emergency turns; virtual peers use smooth avoidance.
                             emergency = is_near_physical_wall
                         else:
                             is_near_virtual_wall = any(v > self.fsm.VIRTUAL_PROX_THRESHOLD for v in self.latest_virtual_prox)
@@ -187,7 +200,6 @@ class ThymioAllocationDriverNode(Node):
                             rotation_offset = max(-130.0, min(130.0, h_err * 40.0))
                             forward_speed = effective_speed * max(0.1, math.cos(h_err))
                         else:
-                            # Smooth, gentle avoidance rotation limit
                             rotation_offset = max(-60.0, min(60.0, h_err * 35.0))
                             forward_speed = effective_speed * max(0.1, math.cos(h_err))
                         
@@ -200,23 +212,21 @@ class ThymioAllocationDriverNode(Node):
                     raw_left = target_speed
                     raw_right = target_speed
 
+            # Low-pass smoothing on motor commands to prevent physical wheel chatter
             smoothing = 0.25
             self.target_left = int((smoothing * raw_left) + ((1.0 - smoothing) * self.prev_target_left))
             self.target_right = int((smoothing * raw_right) + ((1.0 - smoothing) * self.prev_target_right))
             self.prev_target_left, self.prev_target_right = self.target_left, self.target_right
             
+            # Send commands to physical Thymio hardware via thymiodirect library
             self.th[self.node_id]["motor.left.target"] = max(-300, min(300, self.target_left))
             self.th[self.node_id]["motor.right.target"] = max(-300, min(300, self.target_right))
-            
-            twist = Twist()
-            twist.linear.x = ((self.target_right + self.target_left) / 2.0) * 0.0004
-            twist.angular.z = ((self.target_right - self.target_left) / self.L) * 0.0004
-            self.cmd_vel_publisher.publish(twist)
 
         except Exception as e:
             self.get_logger().error(f"Loop Error: {e}")
 
     def stop_robot(self):
+        """Safely stops motors and terminates serial connection."""
         try:
             self.th[self.node_id]["motor.left.target"] = 0
             self.th[self.node_id]["motor.right.target"] = 0

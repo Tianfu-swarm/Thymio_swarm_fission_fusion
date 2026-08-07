@@ -3,6 +3,10 @@ import random
 from collections import deque
 
 class ExtremaRadio:
+    """
+    Implements decentralized swarm size estimation using Min-Vector consensus 
+    (Extrema Propagation Algorithm) over simulated radio media.
+    """
     def __init__(self, k_dim=50):
         self.K_DIMENSION = k_dim
         self.current_round_id = 1.0
@@ -17,13 +21,16 @@ class ExtremaRadio:
         self.has_started_convergence = False
 
     def initialize_vector(self):
+        """Initializes local minimum vector with exponentially distributed random values."""
         self.x = [random.expovariate(1.0) for _ in range(self.K_DIMENSION)]
 
     def estimate_group_size_extrema(self):
+        """Computes network/group size estimate G_E from the sum of vector elements."""
         if not self.x or sum(self.x) == 0.0: return 0.0
         return (self.K_DIMENSION - 1) / sum(self.x)
 
-    def apply_smoothed_estimate(self, new_estimate, logger):
+    def apply_smoothed_estimate(self, new_estimate):
+        """Applies exponential moving average filter over historical size estimates."""
         window_size = 5
         size_decay = 0.8
         
@@ -41,13 +48,18 @@ class ExtremaRadio:
         return weighted_sum / weight_total
 
     def step(self, buffered_data, current_state, current_G_E, num_neighbors_physical, logger):
+        """
+        Executes one radio iteration: unpacks incoming packets, updates min-vectors,
+        checks round synchronization, and returns updated estimate + outgoing payload.
+        """
         epsilon = 0.05
-        stride = self.K_DIMENSION + 3
+        stride = self.K_DIMENSION + 3  # Header (round, size, is_vec_flag) + K vectors
         
         num_neighbors_radio = len(buffered_data) // stride
         heard_sizes = []
         valid_vectors = []
 
+        # Parse raw floating-point buffer
         for i in range(num_neighbors_radio):
             base = i * stride
             rx_round = buffered_data[base]
@@ -60,11 +72,11 @@ class ExtremaRadio:
             if rx_round > 0 and is_vec == 1.0: 
                 valid_vectors.append((rx_round, rx_vec))
 
-        # ── MODULE 1: FISSION (Broadcast Size = 1 Only) ──
+        # ── MODULE 1: FISSION STATE ──
         if current_state == 'FISSION':
             return current_G_E, [0.0, 1.0, 0.0] + [0.0] * self.K_DIMENSION
 
-        # ── MODULE 2: RANDOM WALK & FUSION ──
+        # ── MODULE 2: RANDOM WALK & FUSION STATES ──
         if current_state in ['RANDOM_WALK', 'FUSION']:
             if heard_sizes: current_G_E = max(heard_sizes)
             else: current_G_E = 1.0
@@ -76,7 +88,7 @@ class ExtremaRadio:
             
             return current_G_E, [0.0, 1.0, 0.0] + [0.0] * self.K_DIMENSION
 
-        # ── MODULE 3: STAY STATE ──
+        # ── MODULE 3: STAY STATE (Consensus Engine) ──
         if current_state == 'STAY':
             if num_neighbors_physical == 0:
                 return current_G_E, [0.0, current_G_E, 0.0] + [0.0] * self.K_DIMENSION
@@ -86,6 +98,7 @@ class ExtremaRadio:
             should_sync = False
             sync_to = -1.0
 
+            # Element-wise Min-Vector consensus computation
             for rx_round, rx_vec in valid_vectors:
                 if rx_round > self.current_round_id:
                     if not should_sync or rx_round > sync_to:
@@ -101,8 +114,8 @@ class ExtremaRadio:
 
             N = self.estimate_group_size_extrema()
             self.N_history.append(N)
-            logger.info(f"[Radio Debug] N_calc: {N:.2f} | Smoothed G_E: {current_G_E:.2f}")
 
+            # Check for early local vector convergence
             if not self.has_started_convergence and len(self.N_history) >= self.early_converge_window:
                 early_converged = True
                 hist_list = list(self.N_history)
@@ -114,14 +127,14 @@ class ExtremaRadio:
                 if early_converged:
                     self.has_started_convergence = True
 
+            # Sync round ID if higher round received from neighboring peers
             if should_sync and sync_to > self.current_round_id and self.has_started_convergence:
                 self.current_round_id = float(sync_to)
                 self.initialize_vector()
                 self.has_started_convergence = False
                 self.propagation_hops = 0
                 self.N_history.clear()
-                current_G_E = self.apply_smoothed_estimate(N, logger)
-                logger.info(f">>> [G_E SYNC] Size Updated to: {current_G_E:.2f} <<<")
+                current_G_E = self.apply_smoothed_estimate(N)
                 
                 return current_G_E, [float(self.current_round_id), float(current_G_E), 1.0] + self.x
 
@@ -129,13 +142,13 @@ class ExtremaRadio:
                 if x_changed: self.propagation_hops = 0
                 else: self.propagation_hops += 1
 
+            # Check network stability and increment consensus round when stable
             stable = False
             if len(self.N_history) == self.stability_window:
                 stable = all(abs(self.N_history[i] - self.N_history[i-1]) < epsilon for i in range(1, len(self.N_history)))
 
             if stable and self.propagation_hops >= self.required_propagation_hops:
-                current_G_E = self.apply_smoothed_estimate(N, logger)
-                logger.info(f">>> [G_E SYNC] Size Updated to: {current_G_E:.2f} <<<")
+                current_G_E = self.apply_smoothed_estimate(N)
                 self.has_started_convergence = False
                 self.current_round_id += 1.0
                 self.x.clear()
