@@ -137,7 +137,7 @@ Terminal 5: Launch ARGoS Virtual Environment
 
 Starts the physics engine for virtual collision avoidance and radio consensus bridging.
 ```bash
-argos3 -c src/allocation.argos
+argos3 -c allocation.argos
 ```
 
 ### Client Side (Thymio Robots)
