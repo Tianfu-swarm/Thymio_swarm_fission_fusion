@@ -48,11 +48,16 @@ git clone https://github.com/Tianfu-swarm/tag_tracker.git
 
 # 4. Copy the allocation.argos file from the real_mapping_argos_controller folder to the src folder
 
-# 5. You must download the ROS2-Driver for Basler Cameras and download argos3 plugins to access the foot-bot.
+# 5. You must download the ROS2-Driver for Basler Cameras and download argos3 plugins to access the foot-bot model: https://github.com/ilpincy/argos3/tree/master/src/plugins/robots/foot-bot.
 ```
-It has to look like this:
+The workspace has to look like this:
 <p align="center">
   <img src="./../doc/photos/src_folder.png" width="450" style="vertical-align: middle;">
+</p>
+
+Here is how the argos_plugins folder should look like:
+<p align="center">
+  <img src="./../doc/photos/argos_plugins.png" width="450" style="vertical-align: middle;">
 </p>
 
 ### 2. Replace the ARGoS ROS Bridge Controller
@@ -70,7 +75,7 @@ colcon build
 ```
 ## Configuration
 ### 1. FastDDS Discovery Server (.bashrc)
-To ensure seamless Wi-Fi communication between the central server (running ARGoS and the camera) and the clients (Raspberry Pis on the Thymios), configure the FastDDS Discovery Server. 
+To ensure seamless communication between the central server (running ARGoS and the camera) and the clients (Raspberry Pis on the Thymios), configure the FastDDS Discovery Server. 
 
 To allow ARGoS3 to locate and load the custom FootBot plugins required for the simulation, you must add the plugin build folder to the ARGOS_PLUGIN_PATH environment variable.
 
@@ -140,10 +145,19 @@ argos3 -c src/allocation.argos
 ```
 
 ### Client Side (Thymio Robots)
-SSH into each Raspberry Pi on your Thymio swarm. Verify the USB connection to the Thymio base is active.
+SSH into each Raspberry Pi on your Thymio swarm. Verify the USB connection to the Thymio base is active. Verify that the thymiodirect Python library and ROS 2 are installed.
 
 Run the allocation driver. This node executes the FSM, processes hardware IR sensors, and calculates the vector summation for movement:
 ```bash
-cd Project_Brendan_Bilodeau/Allocation
+cd Project_Brendan_Bilodeau/Allocation/
 python3 thymio_allocation_driver.py
 ```
+
+Or you can take the code that is in the thymio_swarm_fission_fusion_controller and put it on the PI's:
+```bash
+cd thymio_swarm_fission_fusion_controller/Allocation/
+python3 thymio_allocation_driver.py
+```
+
+You can determine the robot ID in this file (thymio_allocation_driver.py).
+It is important that all robots have different ID's
